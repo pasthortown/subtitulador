@@ -1,0 +1,31 @@
+# ============================================
+# Backend - Dependencias de Producción
+# ============================================
+
+# Web Framework
+tornado>=6.4
+
+# Whisper y ML
+# torch se instala por separado con soporte CUDA en Dockerfile
+openai-whisper>=20231117
+numpy>=1.24.0
+
+# Audio processing
+soundfile>=0.12.0
+librosa>=0.10.0
+
+# Configuración
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Validación
+pydantic>=2.5.0
+
+# Documentación API
+tornado-swagger>=1.2.0
+
+# Logging
+structlog>=23.2.0
+
+# Utilidades
+python-multipart>=0.0.6

@@ -1,0 +1,375 @@
+{
+  "info": {
+    "name": "Subtitulador Translation API",
+    "description": "Colección de endpoints para el servicio de traducción (LibreTranslate)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "{{translation_url}}"
+    }
+  ],
+  "item": [
+    {
+      "name": "Languages",
+      "item": [
+        {
+          "name": "List Languages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/languages",
+              "host": ["{{baseUrl}}"],
+              "path": ["languages"]
+            },
+            "description": "Lista los idiomas disponibles para traducción"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Languages have required fields', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        pm.expect(jsonData[0]).to.have.property('code');",
+                  "        pm.expect(jsonData[0]).to.have.property('name');",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Spanish is available', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const spanish = jsonData.find(l => l.code === 'es');",
+                  "    pm.expect(spanish).to.not.be.undefined;",
+                  "});",
+                  "",
+                  "pm.test('English is available', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const english = jsonData.find(l => l.code === 'en');",
+                  "    pm.expect(english).to.not.be.undefined;",
+                  "});",
+                  "",
+                  "pm.test('Portuguese is available', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const portuguese = jsonData.find(l => l.code === 'pt');",
+                  "    pm.expect(portuguese).to.not.be.undefined;",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(1000);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Translation",
+      "item": [
+        {
+          "name": "Translate Spanish to English",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"q\": \"Hola, este es un texto de prueba para traducir.\",\n  \"source\": \"es\",\n  \"target\": \"en\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/translate",
+              "host": ["{{baseUrl}}"],
+              "path": ["translate"]
+            },
+            "description": "Traduce texto de español a inglés"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has translatedText', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('translatedText');",
+                  "    pm.expect(jsonData.translatedText).to.be.a('string');",
+                  "    pm.expect(jsonData.translatedText.length).to.be.above(0);",
+                  "});",
+                  "",
+                  "pm.test('Translation contains expected words', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const text = jsonData.translatedText.toLowerCase();",
+                  "    // Debería contener palabras en inglés",
+                  "    pm.expect(text).to.match(/hello|hi|this|test|translate/i);",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Translate Spanish to Portuguese",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"q\": \"Buenos días, ¿cómo estás?\",\n  \"source\": \"es\",\n  \"target\": \"pt\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/translate",
+              "host": ["{{baseUrl}}"],
+              "path": ["translate"]
+            },
+            "description": "Traduce texto de español a portugués"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has translatedText', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('translatedText');",
+                  "    pm.expect(jsonData.translatedText).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('Translation is in Portuguese', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const text = jsonData.translatedText.toLowerCase();",
+                  "    // Debería contener palabras en portugués",
+                  "    pm.expect(text).to.match(/bom|dia|como|está|você/i);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Translate English to Spanish",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"q\": \"Hello, this is a test message.\",\n  \"source\": \"en\",\n  \"target\": \"es\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/translate",
+              "host": ["{{baseUrl}}"],
+              "path": ["translate"]
+            },
+            "description": "Traduce texto de inglés a español"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has translatedText', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('translatedText');",
+                  "});",
+                  "",
+                  "pm.test('Translation is in Spanish', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    const text = jsonData.translatedText.toLowerCase();",
+                  "    pm.expect(text).to.match(/hola|esto|es|un|mensaje|prueba/i);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Translate - Invalid Language",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"q\": \"Test\",\n  \"source\": \"invalid\",\n  \"target\": \"en\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/translate",
+              "host": ["{{baseUrl}}"],
+              "path": ["translate"]
+            },
+            "description": "Test de error con idioma inválido"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 or 500', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([400, 500]);",
+                  "});",
+                  "",
+                  "pm.test('Response has error', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Translate - Empty Text",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"q\": \"\",\n  \"source\": \"es\",\n  \"target\": \"en\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/translate",
+              "host": ["{{baseUrl}}"],
+              "path": ["translate"]
+            },
+            "description": "Test de traducción con texto vacío"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 or 400', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Detection",
+      "item": [
+        {
+          "name": "Detect Language",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"q\": \"Hola, este es un texto en español.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/detect",
+              "host": ["{{baseUrl}}"],
+              "path": ["detect"]
+            },
+            "description": "Detecta el idioma del texto"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Detection has confidence', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        pm.expect(jsonData[0]).to.have.property('confidence');",
+                  "        pm.expect(jsonData[0]).to.have.property('language');",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Detected language is Spanish', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.length > 0) {",
+                  "        pm.expect(jsonData[0].language).to.eql('es');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,300 @@
+{
+  "info": {
+    "name": "Subtitulador Backend API",
+    "description": "Colección de endpoints para el servicio de transcripción",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "{{backend_url}}"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "health"]
+            },
+            "description": "Verifica el estado del servicio de transcripción"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has healthy status', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('healthy');",
+                  "});",
+                  "",
+                  "pm.test('Response has required fields', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('version');",
+                  "    pm.expect(jsonData).to.have.property('model');",
+                  "    pm.expect(jsonData).to.have.property('device');",
+                  "    pm.expect(jsonData).to.have.property('uptime_seconds');",
+                  "});",
+                  "",
+                  "pm.test('Response time is acceptable', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Models",
+      "item": [
+        {
+          "name": "List Models",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/models",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "models"]
+            },
+            "description": "Lista los modelos de transcripción disponibles"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has models array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('models');",
+                  "    pm.expect(jsonData.models).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Response has current_model', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('current_model');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Transcription",
+      "item": [
+        {
+          "name": "Transcribe Audio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"audio\": \"{{sample_audio_base64}}\",\n  \"language\": \"es\",\n  \"sample_rate\": 16000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transcribe",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transcribe"]
+            },
+            "description": "Transcribe audio enviado en base64"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 or 400', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 400]);",
+                  "});",
+                  "",
+                  "pm.test('Response has success field', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('success');",
+                  "});",
+                  "",
+                  "pm.test('Successful response has data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.success) {",
+                  "        pm.expect(jsonData).to.have.property('data');",
+                  "        pm.expect(jsonData.data).to.have.property('text');",
+                  "        pm.expect(jsonData.data).to.have.property('language');",
+                  "        pm.expect(jsonData.data).to.have.property('confidence');",
+                  "        pm.expect(jsonData.data).to.have.property('duration_ms');",
+                  "        pm.expect(jsonData.data).to.have.property('processing_time_ms');",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test('Error response has error details', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (!jsonData.success) {",
+                  "        pm.expect(jsonData).to.have.property('error');",
+                  "        pm.expect(jsonData.error).to.have.property('code');",
+                  "        pm.expect(jsonData.error).to.have.property('message');",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transcribe Audio - Invalid Language",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"audio\": \"{{sample_audio_base64}}\",\n  \"language\": \"invalid\",\n  \"sample_rate\": 16000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transcribe",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transcribe"]
+            },
+            "description": "Test de error con idioma inválido"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Response indicates failure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(false);",
+                  "});",
+                  "",
+                  "pm.test('Error mentions validation', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.include('VALIDATION');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transcribe Audio - Empty Body",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transcribe",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "transcribe"]
+            },
+            "description": "Test de error con body vacío"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Response indicates failure', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.eql(false);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Documentation",
+      "item": [
+        {
+          "name": "OpenAPI Spec",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/openapi.json",
+              "host": ["{{baseUrl}}"],
+              "path": ["openapi.json"]
+            },
+            "description": "Obtiene la especificación OpenAPI"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is valid OpenAPI', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('openapi');",
+                  "    pm.expect(jsonData).to.have.property('info');",
+                  "    pm.expect(jsonData).to.have.property('paths');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

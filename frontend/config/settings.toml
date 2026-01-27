@@ -1,0 +1,30 @@
+# ============================================
+# Frontend - Configuración
+# ============================================
+
+[server]
+backend_url = "http://192.168.97.10:8000"
+translation_url = "http://192.168.97.11:5000"
+
+[language]
+input = "es"
+output = "pt"
+
+[audio]
+sample_rate = 16000
+channels = 1
+chunk_ms = 100
+silence_duration_ms = 750
+max_buffer_seconds = 15.0
+
+[ui]
+font_size = 28
+window_width = 800
+window_height = 120
+fade_duration_ms = 1000
+display_time_multiplier = 1.5
+
+[calibration]
+silence_seconds = 5
+voice_seconds = 10
+threshold_factor = 0.3

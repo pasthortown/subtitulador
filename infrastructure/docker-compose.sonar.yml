@@ -1,0 +1,89 @@
+version: '3.8'
+
+networks:
+  subtitulador_net:
+    external: true
+    name: infrastructure_subtitulador_net
+
+volumes:
+  sonar_data:
+  sonar_logs:
+  sonar_extensions:
+  postgres_data:
+
+services:
+  # ============================================
+  # SONARQUBE - Análisis de Calidad y Seguridad
+  # ============================================
+  sonarqube:
+    image: sonarqube:lts-community
+    container_name: subtitulador-sonarqube
+    hostname: sonarqube
+    networks:
+      subtitulador_net:
+        ipv4_address: 192.168.97.20
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonar_data:/opt/sonarqube/data
+      - sonar_logs:/opt/sonarqube/logs
+      - sonar_extensions:/opt/sonarqube/extensions
+    environment:
+      - SONAR_JDBC_URL=jdbc:postgresql://postgres:5432/sonar
+      - SONAR_JDBC_USERNAME=sonar
+      - SONAR_JDBC_PASSWORD=${SONAR_DB_PASSWORD:-sonar_password}
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/api/system/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  # ============================================
+  # POSTGRES - Base de datos para SonarQube
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: subtitulador-postgres
+    hostname: postgres
+    networks:
+      subtitulador_net:
+        ipv4_address: 192.168.97.21
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=sonar
+      - POSTGRES_PASSWORD=${SONAR_DB_PASSWORD:-sonar_password}
+      - POSTGRES_DB=sonar
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sonar -d sonar"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================
+  # SONAR-SCANNER - Scanner para análisis
+  # ============================================
+  sonar-scanner:
+    image: sonarsource/sonar-scanner-cli:latest
+    container_name: subtitulador-scanner
+    networks:
+      subtitulador_net:
+    volumes:
+      - ../backend:/usr/src/backend:ro
+      - ../frontend:/usr/src/frontend:ro
+      - ./sonar:/opt/sonar-scanner/conf:ro
+    environment:
+      - SONAR_HOST_URL=http://sonarqube:9000
+      - SONAR_TOKEN=${SONAR_TOKEN:-}
+    depends_on:
+      sonarqube:
+        condition: service_healthy
+    profiles:
+      - scan

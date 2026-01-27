@@ -1,0 +1,82 @@
+# Docker Compose - Subtitulador solo CPU
+# Uso: docker-compose -f docker-compose-cpu.yml up -d
+#
+# Para sistemas sin GPU NVIDIA
+# Usa modelos más pequeños para mejor rendimiento en CPU
+#
+# Requisitos:
+#   - Docker Desktop
+#   - Archivo .env en este directorio (ver .env.example)
+
+networks:
+  subtitulador_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.97.0/24
+
+services:
+  # ============================================
+  # BACKEND - Servicio de Transcripción (CPU)
+  # ============================================
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: subtitulador-backend
+    hostname: backend
+    networks:
+      subtitulador_net:
+        ipv4_address: 192.168.97.10
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      # Modelos de Whisper (persistentes)
+      - ../models/whisper:/app/models:rw
+      # Código fuente (solo lectura para hot-reload en dev)
+      - ../backend/src:/app/src:ro
+      - ../backend/config:/app/config:ro
+    environment:
+      # Para CPU se recomienda modelo más pequeño
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - WHISPER_DEVICE=cpu
+      - WHISPER_COMPUTE_TYPE=int8
+      - DEFAULT_LANGUAGE=${DEFAULT_LANGUAGE:-es}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - WORKERS=${WORKERS:-2}
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # ============================================
+  # TRANSLATION - Servicio de Traducción
+  # ============================================
+  translation:
+    image: libretranslate/libretranslate:latest
+    container_name: subtitulador-translation
+    hostname: translation
+    networks:
+      subtitulador_net:
+        ipv4_address: 192.168.97.11
+    ports:
+      - "${TRANSLATION_PORT:-5001}:5000"
+    volumes:
+      # Modelos de Argos Translate (persistentes)
+      - ../models/argos:/home/libretranslate/.local:rw
+    environment:
+      - LT_LOAD_ONLY=${LT_LOAD_ONLY:-es,en,pt}
+      - LT_THREADS=${LT_THREADS:-4}
+      - LT_CHAR_LIMIT=${LT_CHAR_LIMIT:-5000}
+      - LT_DISABLE_WEB_UI=${LT_DISABLE_WEB_UI:-false}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/languages', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    restart: unless-stopped

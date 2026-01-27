@@ -1,0 +1,24 @@
+version: '3.8'
+
+# Configuración de desarrollo con hot-reload y debugging
+
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - ../backend/src:/app/src:rw
+      - ../backend/tests:/app/tests:rw
+      - ../backend/config:/app/config:rw
+    environment:
+      - LOG_LEVEL=DEBUG
+      - RELOAD=true
+    ports:
+      - "8000:8000"
+      - "5678:5678"  # Debug port
+
+  translation:
+    environment:
+      - LT_DEBUG=true

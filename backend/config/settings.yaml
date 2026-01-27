@@ -1,0 +1,43 @@
+# ============================================
+# Backend - Configuración de la Aplicación
+# ============================================
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 2
+  debug: false
+
+whisper:
+  model: "large-v3-turbo"
+  device: "cpu"
+  compute_type: "int8"
+  language: "es"
+  models_path: "/app/models"
+
+audio:
+  sample_rate: 16000
+  channels: 1
+  min_duration_ms: 300
+  max_duration_ms: 30000
+
+api:
+  version: "v1"
+  prefix: "/api"
+  docs_url: "/docs"
+  openapi_url: "/openapi.json"
+
+logging:
+  level: "INFO"
+  format: "json"
+  include_timestamp: true
+
+cors:
+  allow_origins:
+    - "*"
+  allow_methods:
+    - "GET"
+    - "POST"
+    - "OPTIONS"
+  allow_headers:
+    - "*"

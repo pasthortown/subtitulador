@@ -1,0 +1,109 @@
+# ==============================================
+# Subtitulador - Global .gitignore
+# ==============================================
+
+# ----------------------------------------------
+# OS Generated
+# ----------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ----------------------------------------------
+# IDEs and Editors
+# ----------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# ----------------------------------------------
+# Python
+# ----------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+.mypy_cache/
+.ruff_cache/
+
+# ----------------------------------------------
+# Rust
+# ----------------------------------------------
+target/
+**/*.rs.bk
+Cargo.lock
+
+# ----------------------------------------------
+# Models (large files)
+# ----------------------------------------------
+models/whisper/*.bin
+models/whisper/*.pt
+models/argos/**
+!models/whisper/.gitkeep
+!models/argos/.gitkeep
+
+# ----------------------------------------------
+# Environment files
+# ----------------------------------------------
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ----------------------------------------------
+# Logs
+# ----------------------------------------------
+logs/
+*.log
+npm-debug.log*
+
+# ----------------------------------------------
+# Docker
+# ----------------------------------------------
+.docker/
+
+# ----------------------------------------------
+# Coverage reports
+# ----------------------------------------------
+coverage/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ----------------------------------------------
+# Temporary files
+# ----------------------------------------------
+tmp/
+temp/
+*.tmp
+*.bak
+*.old

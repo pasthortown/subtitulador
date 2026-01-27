@@ -1,0 +1,5 @@
+# Variables de entorno locales (contienen configuración sensible)
+.env
+
+# Mantener el ejemplo
+!.env.example

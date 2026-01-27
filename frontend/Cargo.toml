@@ -1,0 +1,55 @@
+[package]
+name = "subtitulador-frontend"
+version = "1.0.0"
+edition = "2021"
+authors = ["Subtitulador Team"]
+description = "Frontend de subtitulación en tiempo real"
+license = "MIT"
+
+[dependencies]
+# Audio
+cpal = "0.15"
+
+# UI
+eframe = "0.27"
+egui = "0.27"
+
+# HTTP Client
+reqwest = { version = "0.11", features = ["json", "blocking"] }
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.21"
+
+# Configuration
+config = "0.14"
+toml = "0.8"
+dotenv = "0.15"
+
+# Utilities
+thiserror = "1"
+anyhow = "1"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+parking_lot = "0.12"
+crossbeam-channel = "0.5"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+mockall = "0.12"
+tokio-test = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+
+[[bin]]
+name = "subtitulador"
+path = "src/main.rs"
