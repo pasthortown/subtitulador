@@ -22,9 +22,9 @@ impl AppConfig {
     pub fn load() -> Result<Self> {
         Ok(Self {
             backend_url: env::var("BACKEND_URL")
-                .unwrap_or_else(|_| "http://192.168.97.10:8000".to_string()),
+                .unwrap_or_else(|_| "http://localhost:8000".to_string()),
             translation_url: env::var("TRANSLATION_URL")
-                .unwrap_or_else(|_| "http://192.168.97.11:5000".to_string()),
+                .unwrap_or_else(|_| "http://localhost:5001".to_string()),
             input_language: env::var("INPUT_LANGUAGE")
                 .unwrap_or_else(|_| "es".to_string()),
             output_language: env::var("OUTPUT_LANGUAGE")
@@ -114,8 +114,8 @@ impl AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            backend_url: "http://192.168.97.10:8000".to_string(),
-            translation_url: "http://192.168.97.11:5000".to_string(),
+            backend_url: "http://localhost:8000".to_string(),
+            translation_url: "http://localhost:5001".to_string(),
             input_language: "es".to_string(),
             output_language: "pt".to_string(),
             sample_rate: 16000,

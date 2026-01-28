@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Subtitulador
+GenericName=Transcriptor de Audio
+Comment=Transcripción de audio en tiempo real con Whisper
+Exec=/opt/subtitulador/bin/subtitulador
+Icon=/opt/subtitulador/share/icons/subtitulador.svg
+Terminal=false
+Categories=AudioVideo;Audio;Utility;Accessibility;
+Keywords=subtitles;transcription;whisper;audio;speech;
+StartupNotify=true
+StartupWMClass=subtitulador
