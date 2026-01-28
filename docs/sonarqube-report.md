@@ -1,8 +1,8 @@
 # Reporte de Calidad y Seguridad - SonarQube
 
-**Fecha:** 2026-01-27
-**Versión SonarQube:** Community Build 26.1.0.118079
-**Última ejecución:** 2026-01-27 21:07 UTC
+**Fecha:** 2026-01-28
+**Versión SonarQube:** Community Edition 9.9.8.100196
+**Última ejecución:** 2026-01-28 20:53 UTC
 
 ---
 
@@ -68,7 +68,7 @@ Cobertura por capa:
 
 ## Frontend (Rust)
 
-### Métricas de Calidad (SonarQube API)
+### Métricas de Calidad (SonarQube API) - 2026-01-28
 
 | Métrica | Valor | Estado |
 |---------|-------|--------|
@@ -85,7 +85,30 @@ Cobertura por capa:
 |--------|-------|-------------|
 | Reliability (Bugs) | A | Mejor calificación posible |
 | Security (Vulnerabilidades) | A | Mejor calificación posible |
+| Security Review (Hotspots) | A | Mejor calificación posible |
 | Maintainability (Code Smells) | A | Mejor calificación posible |
+
+### Refactorización Arquitectura Hexagonal (2026-01-28)
+
+Se cableó correctamente la arquitectura hexagonal. Los adaptadores de infraestructura
+ahora implementan los traits (puertos) del dominio, y el orquestador y la UI dependen
+de abstracciones en lugar de tipos concretos.
+
+| Cambio | Archivos Afectados | Impacto |
+|--------|--------------------|---------|
+| Redefinición de `AudioCapturePort` | `domain/ports/inbound/mod.rs` | Trait con 7 métodos reales, `AudioDeviceInfo` movido al dominio |
+| Eliminación de `UIPort` | `domain/ports/inbound/mod.rs` | No aplica a egui immediate-mode; canal crossbeam es correcto |
+| `fetch_languages` en `TranslationPort` | `domain/ports/outbound/mod.rs` | `AvailableLanguage` movido al dominio |
+| `AudioCapture` impl `AudioCapturePort` | `infrastructure/adapters/inbound/audio_capture.rs` | Adaptador implementa puerto inbound |
+| `HttpTranscriptionClient` impl `TranscriptionPort` | `infrastructure/adapters/outbound/http_transcription.rs` | Adaptador implementa puerto outbound |
+| `HttpTranslationClient` impl `TranslationPort` | `infrastructure/adapters/outbound/http_translation.rs` | Adaptador implementa puerto outbound |
+| Orquestador con trait objects | `application/services/orchestrator.rs` | `Box<dyn TranscriptionPort>`, `Box<dyn TranslationPort>` |
+| UI con trait object | `presentation/ui/subtitle_app.rs` | `Option<Box<dyn AudioCapturePort>>` |
+| Inyección de dependencias | `main.rs` | Único punto que conoce tipos concretos |
+
+**Resultado:** Warnings de compilación reducidos de 32 a 16. Los 16 restantes son
+métodos de entidades/value objects del dominio aún no consumidos externamente,
+no relacionados con la estructura hexagonal.
 
 ### Issues Históricos (Resueltos)
 
@@ -103,6 +126,7 @@ Cobertura por capa:
 - Extracción de métodos helper
 - Eliminación de `setup_wizard.rs` (no utilizado)
 - Reducción de duplicación de código
+- Cableado correcto de arquitectura hexagonal (puertos, adaptadores, inyección de dependencias)
 
 ### Tests Unitarios
 
@@ -143,6 +167,8 @@ Tests por módulo:
 
 ### Frontend
 
+#### Complejidad Cognitiva (Histórico)
+
 | Función Original | Complejidad Antes | Complejidad Después |
 |------------------|-------------------|---------------------|
 | `get_primary_monitor()` | 46 | ~10 |
@@ -151,9 +177,23 @@ Tests por módulo:
 | `get_pipewire_sources()` | 30 | ~10 |
 | `list_input_devices()` | 20 | ~10 |
 
+#### Arquitectura Hexagonal (2026-01-28)
+
+| Aspecto | Antes | Después |
+|---------|-------|---------|
+| Puertos del dominio | Definidos pero no implementados | Implementados por adaptadores |
+| Orquestador | Tipos concretos (`HttpTranscriptionClient`) | Trait objects (`Box<dyn TranscriptionPort>`) |
+| UI (SubtitleApp) | `Option<AudioCapture>` (tipo concreto) | `Option<Box<dyn AudioCapturePort>>` |
+| `AudioDeviceInfo` | Definido en infraestructura | Definido en dominio |
+| `AvailableLanguage` | Definido en infraestructura | Definido en dominio |
+| `UIPort` | Definido pero inaplicable | Eliminado (egui usa canales) |
+| Inyección de dependencias | No existía | `main.rs` inyecta adaptadores |
+| Warnings de compilación | 32 | 16 |
+
 **Mejoras logradas:**
 - Code Smells: 6 → 0
 - Duplicación: 3.8% → 0.0%
+- Arquitectura hexagonal correctamente cableada con inversión de dependencias
 
 ---
 
@@ -214,11 +254,13 @@ curl -u admin:admin "http://localhost:9000/api/measures/component?component=subt
 - [x] Resolver security hotspots
 - [x] Implementar tests unitarios backend (74 tests)
 - [x] Implementar tests unitarios frontend (36 tests)
+- [x] Cablear arquitectura hexagonal del frontend (puertos, adaptadores, DI)
 - [ ] Aumentar cobertura backend a 80%
 - [ ] Agregar tests de integración para Infrastructure layer
 - [ ] Configurar CI/CD con análisis automático
 
 ---
 
-*Reporte generado desde SonarQube Community Build 26.1.0.118079*
+*Reporte generado desde SonarQube Community Edition 9.9.8.100196*
 *Servidor: http://localhost:9000*
+*Última actualización: 2026-01-28*
