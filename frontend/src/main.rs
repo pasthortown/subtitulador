@@ -72,7 +72,8 @@ fn main() -> Result<()> {
     info!("Iniciando Subtitulador Frontend...");
 
     // Cargar configuración
-    let config = AppConfig::load()?;
+    let mut config = AppConfig::load()?;
+    config.load_persisted_languages();
     info!("Configuración cargada: {:?}", config);
 
     // Ejecutar aplicación de subtítulos directamente

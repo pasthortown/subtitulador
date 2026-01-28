@@ -14,6 +14,7 @@ use crate::infrastructure::config::AppConfig;
 use crate::infrastructure::adapters::{
     HttpTranscriptionClient,
     HttpTranslationClient,
+    AvailableLanguage,
 };
 
 /// Mensaje de subtítulo para la UI.
@@ -133,5 +134,17 @@ impl TranscriptionOrchestrator {
     pub fn stop(&self) {
         *self.is_running.lock().unwrap() = false;
         info!("Orquestador detenido");
+    }
+
+    /// Obtiene los idiomas disponibles del servicio de traducción.
+    pub fn fetch_available_languages(&self) -> Result<Vec<AvailableLanguage>> {
+        self.translation_client.fetch_languages()
+    }
+
+    /// Actualiza los idiomas de entrada y salida.
+    pub fn update_languages(&mut self, input: &str, output: &str) {
+        self.config.input_language = input.to_string();
+        self.config.output_language = output.to_string();
+        info!("Idiomas actualizados: {} -> {}", input, output);
     }
 }

@@ -4,8 +4,17 @@ use anyhow::{Result, anyhow};
 use reqwest::blocking::Client;
 use tracing::{debug, error};
 
+use serde::Deserialize;
+
 use crate::domain::Language;
 use crate::application::dtos::{TranslationRequest, TranslationResponse};
+
+/// Idioma disponible en el servicio de traducción.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AvailableLanguage {
+    pub code: String,
+    pub name: String,
+}
 
 /// Cliente HTTP para el servicio de traducción (LibreTranslate).
 pub struct HttpTranslationClient {
@@ -58,6 +67,27 @@ impl HttpTranslationClient {
             .map_err(|e| anyhow!("Error parseando respuesta: {}", e))?;
 
         Ok(body.translated_text)
+    }
+
+    /// Obtiene la lista de idiomas disponibles en el servicio de traducción.
+    pub fn fetch_languages(&self) -> Result<Vec<AvailableLanguage>> {
+        let url = format!("{}/languages", self.base_url);
+
+        let response = self.client
+            .get(&url)
+            .send()
+            .map_err(|e| anyhow!("Error de conexión al obtener idiomas: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(anyhow!("Error al obtener idiomas: status {}", response.status()));
+        }
+
+        let languages: Vec<AvailableLanguage> = response
+            .json()
+            .map_err(|e| anyhow!("Error parseando idiomas: {}", e))?;
+
+        debug!("Idiomas disponibles: {}", languages.len());
+        Ok(languages)
     }
 
     /// Verifica si el servicio está disponible.

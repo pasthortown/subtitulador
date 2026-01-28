@@ -8,7 +8,7 @@ use tracing::{info, debug, warn, error};
 
 use crate::domain::{Subtitle, AudioBuffer, Language, SilenceDetector, AudioPower};
 use crate::infrastructure::config::AppConfig;
-use crate::infrastructure::adapters::{AudioCapture, AudioDeviceInfo};
+use crate::infrastructure::adapters::{AudioCapture, AudioDeviceInfo, AvailableLanguage};
 use crate::application::services::TranscriptionOrchestrator;
 
 /// Mínimo de samples para transcribir (300ms a 16kHz = 4800 samples).
@@ -141,6 +141,18 @@ pub struct SubtitleApp {
     voice_calibrated: bool,
     /// Potencia actual del micrófono (para mostrar nivel).
     current_mic_level: f32,
+    /// Mostrar selector de idiomas.
+    show_language_selector: bool,
+    /// Lista de idiomas disponibles del backend.
+    available_languages: Vec<AvailableLanguage>,
+    /// Índice de navegación idioma origen.
+    input_lang_nav_index: usize,
+    /// Índice de navegación idioma destino.
+    output_lang_nav_index: usize,
+    /// Idioma origen pendiente de confirmar.
+    pending_input_lang: String,
+    /// Idioma destino pendiente de confirmar.
+    pending_output_lang: String,
 }
 
 /// Tipo de recalibración.
@@ -207,6 +219,12 @@ impl SubtitleApp {
             silence_calibrated: false,
             voice_calibrated: false,
             current_mic_level: 0.0,
+            show_language_selector: false,
+            available_languages: Vec::new(),
+            input_lang_nav_index: 0,
+            output_lang_nav_index: 0,
+            pending_input_lang: String::new(),
+            pending_output_lang: String::new(),
         }
     }
 
@@ -502,10 +520,11 @@ impl SubtitleApp {
     }
 
     /// Dibuja la barra de estado con dispositivo y controles.
-    /// Retorna (click_dispositivo, click_calibrar, click_salir).
-    fn draw_status(&mut self, ui: &mut egui::Ui) -> (bool, bool, bool) {
+    /// Retorna (click_dispositivo, click_calibrar, click_idioma, click_salir).
+    fn draw_status(&mut self, ui: &mut egui::Ui) -> (bool, bool, bool, bool) {
         let mut click_device = false;
         let mut click_calibrate = false;
+        let mut click_language = false;
         let mut click_exit = false;
 
         let is_recalibrating = self.recalibration_state.is_some();
@@ -514,6 +533,11 @@ impl SubtitleApp {
         ui.horizontal(|ui| {
             self.draw_voice_indicator(ui);
             ui.add_space(5.0);
+
+            if self.draw_language_button(ui) {
+                click_language = true;
+            }
+            ui.add_space(6.0);
 
             if self.draw_device_button(ui) {
                 click_device = true;
@@ -532,7 +556,7 @@ impl SubtitleApp {
             }
         });
 
-        (click_device, click_calibrate, click_exit)
+        (click_device, click_calibrate, click_language, click_exit)
     }
 
     /// Dibuja el indicador de voz (punto de estado).
@@ -584,6 +608,29 @@ impl SubtitleApp {
             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
         button.clicked() && !is_recalibrating
+    }
+
+    /// Dibuja el botón de idioma (ej: "ES/PT"). Retorna true si fue clickeado.
+    fn draw_language_button(&self, ui: &mut egui::Ui) -> bool {
+        let label = format!(
+            "{}/{}",
+            self.config.input_language.to_uppercase(),
+            self.config.output_language.to_uppercase()
+        );
+
+        let button = ui.add(
+            egui::Label::new(
+                egui::RichText::new(label)
+                    .size(11.0)
+                    .color(egui::Color32::from_rgb(180, 180, 180))
+            )
+            .sense(egui::Sense::click())
+        );
+
+        if button.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        button.clicked()
     }
 
     /// Obtiene el color del engranaje según el estado.
@@ -786,7 +833,7 @@ impl SubtitleApp {
             .collapsible(false)
             .resizable(false)
             .fixed_size([300.0, 55.0])
-            .anchor(egui::Align2::LEFT_BOTTOM, [60.0, -25.0])
+            .anchor(egui::Align2::LEFT_BOTTOM, [105.0, -25.0])
             .frame(Self::dialog_frame())
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
@@ -821,7 +868,7 @@ impl SubtitleApp {
             .collapsible(false)
             .resizable(false)
             .fixed_size([300.0, 55.0])
-            .anchor(egui::Align2::LEFT_BOTTOM, [10.0, -25.0])
+            .anchor(egui::Align2::LEFT_BOTTOM, [55.0, -25.0])
             .frame(Self::dialog_frame())
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
@@ -861,17 +908,11 @@ impl SubtitleApp {
         });
     }
 
-    /// Dibuja una flecha de navegación. Retorna true si fue clickeada.
+    /// Dibuja una flecha de navegación como botón. Retorna true si fue clickeada.
     fn draw_nav_arrow(ui: &mut egui::Ui, symbol: &str, enabled: bool) -> bool {
-        let color = if enabled {
-            egui::Color32::WHITE
-        } else {
-            egui::Color32::from_rgb(80, 80, 80)
-        };
-
-        let btn = ui.add(
-            egui::Label::new(egui::RichText::new(symbol).size(16.0).color(color))
-                .sense(egui::Sense::click())
+        let btn = ui.add_sized(
+            [24.0, 20.0],
+            egui::Button::new(egui::RichText::new(symbol).size(14.0)),
         );
 
         btn.clicked() && enabled
@@ -1025,6 +1066,147 @@ impl SubtitleApp {
         }
     }
 
+    /// Dibuja el diálogo de selección de idiomas.
+    fn draw_language_dialog(&mut self, ctx: &egui::Context) {
+        egui::Window::new("language_selector")
+            .title_bar(false)
+            .collapsible(false)
+            .resizable(false)
+            .fixed_size([400.0, 55.0])
+            .anchor(egui::Align2::LEFT_BOTTOM, [10.0, -25.0])
+            .frame(Self::dialog_frame())
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    Self::draw_dialog_title(ui, "Selector de idiomas");
+
+                    let has_languages = !self.available_languages.is_empty();
+                    let lang_count = self.available_languages.len();
+
+                    ui.horizontal(|ui| {
+                        ui.add_space(5.0);
+
+                        // Sección idioma origen
+                        if Self::draw_nav_arrow(ui, "◀", has_languages) {
+                            self.input_lang_nav_index = if self.input_lang_nav_index == 0 {
+                                lang_count.saturating_sub(1)
+                            } else {
+                                self.input_lang_nav_index - 1
+                            };
+                            if let Some(lang) = self.available_languages.get(self.input_lang_nav_index) {
+                                self.pending_input_lang = lang.code.clone();
+                            }
+                        }
+                        ui.add_space(3.0);
+
+                        let input_name = if has_languages {
+                            self.available_languages.get(self.input_lang_nav_index)
+                                .map(|l| Self::truncate_name(&l.name, 15))
+                                .unwrap_or_else(|| "?".to_string())
+                        } else {
+                            "Sin idiomas".to_string()
+                        };
+                        ui.add_sized(
+                            [90.0, 20.0],
+                            egui::Button::new(egui::RichText::new(&input_name).size(10.0))
+                        );
+
+                        ui.add_space(3.0);
+                        if Self::draw_nav_arrow(ui, "▶", has_languages) {
+                            self.input_lang_nav_index = if self.input_lang_nav_index >= lang_count.saturating_sub(1) {
+                                0
+                            } else {
+                                self.input_lang_nav_index + 1
+                            };
+                            if let Some(lang) = self.available_languages.get(self.input_lang_nav_index) {
+                                self.pending_input_lang = lang.code.clone();
+                            }
+                        }
+
+                        // Separador vertical
+                        ui.add_space(15.0);
+                        let (rect, _) = ui.allocate_exact_size(egui::vec2(1.0, 20.0), egui::Sense::hover());
+                        ui.painter().rect_filled(rect, 0.0, egui::Color32::WHITE);
+                        ui.add_space(15.0);
+
+                        // Sección idioma destino
+                        if Self::draw_nav_arrow(ui, "◀", has_languages) {
+                            self.output_lang_nav_index = if self.output_lang_nav_index == 0 {
+                                lang_count.saturating_sub(1)
+                            } else {
+                                self.output_lang_nav_index - 1
+                            };
+                            if let Some(lang) = self.available_languages.get(self.output_lang_nav_index) {
+                                self.pending_output_lang = lang.code.clone();
+                            }
+                        }
+                        ui.add_space(3.0);
+
+                        let output_name = if has_languages {
+                            self.available_languages.get(self.output_lang_nav_index)
+                                .map(|l| Self::truncate_name(&l.name, 15))
+                                .unwrap_or_else(|| "?".to_string())
+                        } else {
+                            "Sin idiomas".to_string()
+                        };
+                        ui.add_sized(
+                            [90.0, 20.0],
+                            egui::Button::new(egui::RichText::new(&output_name).size(10.0))
+                        );
+
+                        ui.add_space(3.0);
+                        if Self::draw_nav_arrow(ui, "▶", has_languages) {
+                            self.output_lang_nav_index = if self.output_lang_nav_index >= lang_count.saturating_sub(1) {
+                                0
+                            } else {
+                                self.output_lang_nav_index + 1
+                            };
+                            if let Some(lang) = self.available_languages.get(self.output_lang_nav_index) {
+                                self.pending_output_lang = lang.code.clone();
+                            }
+                        }
+
+                        ui.add_space(5.0);
+
+                        // Botón aceptar
+                        if ui.add_sized([28.0, 20.0], egui::Button::new(egui::RichText::new("OK").size(11.0))).clicked() {
+                            self.config.input_language = self.pending_input_lang.clone();
+                            self.config.output_language = self.pending_output_lang.clone();
+                            self.orchestrator.update_languages(&self.pending_input_lang, &self.pending_output_lang);
+                            self.config.save_languages();
+                            self.show_language_selector = false;
+                            info!("Idiomas aplicados: {} -> {}", self.config.input_language, self.config.output_language);
+                        }
+                    });
+                });
+            });
+    }
+
+    /// Abre el selector de idiomas, obteniendo la lista del backend.
+    fn open_language_selector(&mut self) {
+        match self.orchestrator.fetch_available_languages() {
+            Ok(languages) => {
+                self.available_languages = languages;
+
+                // Calcular índices iniciales según idiomas actuales
+                self.input_lang_nav_index = self.available_languages.iter()
+                    .position(|l| l.code == self.config.input_language)
+                    .unwrap_or(0);
+                self.output_lang_nav_index = self.available_languages.iter()
+                    .position(|l| l.code == self.config.output_language)
+                    .unwrap_or(0);
+
+                self.pending_input_lang = self.config.input_language.clone();
+                self.pending_output_lang = self.config.output_language.clone();
+
+                self.show_language_selector = true;
+                info!("Selector de idiomas abierto con {} idiomas disponibles", self.available_languages.len());
+            }
+            Err(e) => {
+                error!("Error al obtener idiomas disponibles: {}", e);
+            }
+        }
+    }
+
     /// Finaliza la recalibración y aplica los nuevos valores.
     fn finish_recalibration(&mut self) {
         if let Some(state) = self.recalibration_state.take() {
@@ -1090,6 +1272,7 @@ impl eframe::App for SubtitleApp {
 
         let mut click_device = false;
         let mut click_calibrate = false;
+        let mut click_language = false;
         let mut click_exit = false;
 
         let frame = egui::Frame::none()
@@ -1104,9 +1287,10 @@ impl eframe::App for SubtitleApp {
                     self.draw_subtitles(ui);
 
                     ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                        let (cd, cc, ce) = self.draw_status(ui);
+                        let (cd, cc, cl, ce) = self.draw_status(ui);
                         click_device = cd;
                         click_calibrate = cc;
+                        click_language = cl;
                         click_exit = ce;
                     });
                 });
@@ -1122,6 +1306,11 @@ impl eframe::App for SubtitleApp {
         if click_calibrate {
             info!("Click en calibración - iniciando recalibración...");
             self.show_calibration_dialog = true;
+        }
+
+        if click_language {
+            info!("Click en idioma - abriendo selector...");
+            self.open_language_selector();
         }
 
         if click_exit {
@@ -1141,6 +1330,11 @@ impl eframe::App for SubtitleApp {
         // Diálogo de selección de dispositivo
         if self.show_device_selector {
             self.draw_device_dialog(ctx);
+        }
+
+        // Diálogo de selección de idiomas
+        if self.show_language_selector {
+            self.draw_language_dialog(ctx);
         }
 
         ctx.request_repaint();
