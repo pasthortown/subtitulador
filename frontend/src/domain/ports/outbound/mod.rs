@@ -13,6 +13,13 @@ pub struct TranscriptionResult {
     pub processing_time_ms: u64,
 }
 
+/// Idioma disponible en un servicio de traducción.
+#[derive(Debug, Clone)]
+pub struct AvailableLanguage {
+    pub code: String,
+    pub name: String,
+}
+
 /// Puerto para servicio de transcripción.
 pub trait TranscriptionPort: Send + Sync {
     /// Transcribe un buffer de audio.
@@ -26,6 +33,9 @@ pub trait TranscriptionPort: Send + Sync {
 pub trait TranslationPort: Send + Sync {
     /// Traduce texto de un idioma a otro.
     fn translate(&self, text: &str, source: &Language, target: &Language) -> Result<String>;
+
+    /// Obtiene la lista de idiomas disponibles.
+    fn fetch_languages(&self) -> Result<Vec<AvailableLanguage>>;
 
     /// Verifica si el servicio está disponible.
     fn is_available(&self) -> bool;

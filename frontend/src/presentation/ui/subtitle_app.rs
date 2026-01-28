@@ -7,8 +7,9 @@ use eframe::egui;
 use tracing::{info, debug, warn, error};
 
 use crate::domain::{Subtitle, AudioBuffer, Language, SilenceDetector, AudioPower};
+use crate::domain::ports::inbound::{AudioCapturePort, AudioDeviceInfo};
+use crate::domain::ports::outbound::AvailableLanguage;
 use crate::infrastructure::config::AppConfig;
-use crate::infrastructure::adapters::{AudioCapture, AudioDeviceInfo, AvailableLanguage};
 use crate::application::services::TranscriptionOrchestrator;
 
 /// Mínimo de samples para transcribir (300ms a 16kHz = 4800 samples).
@@ -105,7 +106,7 @@ fn parse_geometry(part: &str) -> Option<(f32, f32, f32, f32)> {
 pub struct SubtitleApp {
     orchestrator: TranscriptionOrchestrator,
     config: AppConfig,
-    audio_capture: Option<AudioCapture>,
+    audio_capture: Option<Box<dyn AudioCapturePort>>,
     silence_detector: SilenceDetector,
     audio_buffer: Vec<f32>,
     active_subtitles: VecDeque<Subtitle>,
@@ -176,10 +177,9 @@ impl SubtitleApp {
     pub fn new(
         orchestrator: TranscriptionOrchestrator,
         config: AppConfig,
+        audio_capture: Option<Box<dyn AudioCapturePort>>,
     ) -> Self {
         info!("Creando SubtitleApp - esperando selección de dispositivo");
-
-        let audio_capture = AudioCapture::new(config.sample_rate).ok();
 
         // Cargar lista de dispositivos disponibles al inicio
         let available_devices = if let Some(ref capture) = audio_capture {
@@ -1353,6 +1353,9 @@ impl eframe::App for SubtitleApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
             self.dragged_by_user = true;
         }
+
+        // Mantener siempre visible sobre otras ventanas
+        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
 
         ctx.request_repaint();
     }

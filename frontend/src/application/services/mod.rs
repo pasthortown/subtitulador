@@ -2,4 +2,4 @@
 
 mod orchestrator;
 
-pub use orchestrator::{TranscriptionOrchestrator, SubtitleMessage};
+pub use orchestrator::TranscriptionOrchestrator;

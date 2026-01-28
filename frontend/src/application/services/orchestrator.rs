@@ -1,21 +1,18 @@
 //! Orquestador de transcripción - Coordina captura, transcripción y traducción.
 
 use std::sync::{Arc, Mutex};
-use std::thread;
 use crossbeam_channel::{bounded, Receiver, Sender};
 use anyhow::Result;
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 
 use crate::domain::{
-    AudioBuffer, Subtitle, CalibrationData, SilenceDetector,
-    Language, AudioPower, Duration,
+    AudioBuffer, CalibrationData,
+    Language, Duration,
+};
+use crate::domain::ports::outbound::{
+    TranscriptionPort, TranslationPort, AvailableLanguage,
 };
 use crate::infrastructure::config::AppConfig;
-use crate::infrastructure::adapters::{
-    HttpTranscriptionClient,
-    HttpTranslationClient,
-    AvailableLanguage,
-};
 
 /// Mensaje de subtítulo para la UI.
 #[derive(Debug, Clone)]
@@ -27,8 +24,8 @@ pub struct SubtitleMessage {
 /// Orquestador principal de transcripción.
 pub struct TranscriptionOrchestrator {
     config: AppConfig,
-    transcription_client: HttpTranscriptionClient,
-    translation_client: HttpTranslationClient,
+    transcription_client: Box<dyn TranscriptionPort>,
+    translation_client: Box<dyn TranslationPort>,
     subtitle_sender: Sender<SubtitleMessage>,
     subtitle_receiver: Receiver<SubtitleMessage>,
     calibration: Arc<Mutex<CalibrationData>>,
@@ -36,14 +33,15 @@ pub struct TranscriptionOrchestrator {
 }
 
 impl TranscriptionOrchestrator {
-    /// Crea un nuevo orquestador.
-    pub fn new(config: AppConfig) -> Result<Self> {
-        let transcription_client = HttpTranscriptionClient::new(&config.backend_url);
-        let translation_client = HttpTranslationClient::new(&config.translation_url);
-
+    /// Crea un nuevo orquestador con los puertos inyectados.
+    pub fn new(
+        config: AppConfig,
+        transcription_client: Box<dyn TranscriptionPort>,
+        translation_client: Box<dyn TranslationPort>,
+    ) -> Self {
         let (sender, receiver) = bounded(100);
 
-        Ok(Self {
+        Self {
             config,
             transcription_client,
             translation_client,
@@ -51,7 +49,7 @@ impl TranscriptionOrchestrator {
             subtitle_receiver: receiver,
             calibration: Arc::new(Mutex::new(CalibrationData::default_values())),
             is_running: Arc::new(Mutex::new(false)),
-        })
+        }
     }
 
     /// Configura la calibración.
@@ -117,11 +115,6 @@ impl TranscriptionOrchestrator {
     /// Recibe el próximo subtítulo (no bloqueante).
     pub fn receive_subtitle(&self) -> Option<SubtitleMessage> {
         self.subtitle_receiver.try_recv().ok()
-    }
-
-    /// Verifica si está corriendo.
-    pub fn is_running(&self) -> bool {
-        *self.is_running.lock().unwrap()
     }
 
     /// Inicia el orquestador.

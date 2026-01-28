@@ -12,7 +12,11 @@ use anyhow::Result;
 use tracing::info;
 use tracing_subscriber::{fmt, EnvFilter};
 
+use crate::domain::ports::inbound::AudioCapturePort;
 use crate::infrastructure::config::AppConfig;
+use crate::infrastructure::adapters::{
+    AudioCapture, HttpTranscriptionClient, HttpTranslationClient,
+};
 use crate::application::services::TranscriptionOrchestrator;
 use crate::presentation::ui::SubtitleApp;
 
@@ -31,8 +35,22 @@ fn setup_logging() {
 fn run_subtitle_app(config: AppConfig) -> Result<()> {
     info!("Iniciando aplicación de subtítulos...");
 
-    // Crear orquestador con calibración por defecto
-    let orchestrator = TranscriptionOrchestrator::new(config.clone())?;
+    // Crear adaptadores de infraestructura (tipos concretos)
+    let transcription_client = Box::new(HttpTranscriptionClient::new(&config.backend_url));
+    let translation_client = Box::new(HttpTranslationClient::new(&config.translation_url));
+
+    // Inyectar puertos en el orquestador
+    let orchestrator = TranscriptionOrchestrator::new(
+        config.clone(),
+        transcription_client,
+        translation_client,
+    );
+
+    // Crear adaptador de captura de audio
+    let audio_capture: Option<Box<dyn AudioCapturePort>> =
+        AudioCapture::new(config.sample_rate)
+            .ok()
+            .map(|c| Box::new(c) as Box<dyn AudioCapturePort>);
 
     // Configurar ventana de subtítulos
     // Transparente, sin decoraciones, siempre visible
@@ -57,7 +75,7 @@ fn run_subtitle_app(config: AppConfig) -> Result<()> {
             style.visuals.panel_fill = egui::Color32::TRANSPARENT;
             cc.egui_ctx.set_style(style);
 
-            Box::new(SubtitleApp::new(orchestrator, config))
+            Box::new(SubtitleApp::new(orchestrator, config, audio_capture))
         }),
     ).map_err(|e| anyhow::anyhow!("Error al ejecutar aplicación: {}", e))
 }

@@ -5,7 +5,7 @@ use reqwest::blocking::Client;
 use tracing::{debug, error};
 
 use crate::domain::{AudioBuffer, Language};
-use crate::domain::ports::outbound::TranscriptionResult;
+use crate::domain::ports::outbound::{TranscriptionPort, TranscriptionResult};
 use crate::application::dtos::{TranscriptionRequest, TranscriptionResponse};
 
 /// Cliente HTTP para el servicio de transcripción.
@@ -25,9 +25,10 @@ impl HttpTranscriptionClient {
             base_url: base_url.trim_end_matches('/').to_string(),
         }
     }
+}
 
-    /// Transcribe un buffer de audio.
-    pub fn transcribe(&self, buffer: &AudioBuffer) -> Result<TranscriptionResult> {
+impl TranscriptionPort for HttpTranscriptionClient {
+    fn transcribe(&self, buffer: &AudioBuffer) -> Result<TranscriptionResult> {
         let url = format!("{}/api/v1/transcribe", self.base_url);
 
         let request = TranscriptionRequest {
@@ -44,7 +45,7 @@ impl HttpTranscriptionClient {
             .send()
             .map_err(|e| anyhow!("Error de conexión: {}", e))?;
 
-        let status = response.status();
+        let _status = response.status();
         let body: TranscriptionResponse = response
             .json()
             .map_err(|e| anyhow!("Error parseando respuesta: {}", e))?;
@@ -68,8 +69,7 @@ impl HttpTranscriptionClient {
         })
     }
 
-    /// Verifica si el servicio está disponible.
-    pub fn is_available(&self) -> bool {
+    fn is_available(&self) -> bool {
         let url = format!("{}/api/v1/health", self.base_url);
         self.client.get(&url).send().is_ok()
     }

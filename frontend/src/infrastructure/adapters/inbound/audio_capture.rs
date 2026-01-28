@@ -6,22 +6,10 @@ use std::collections::HashMap;
 use anyhow::{Result, anyhow};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Device, Host, Stream, StreamConfig, SampleRate};
-use tracing::{info, error, debug};
+use tracing::{info, error};
 
 use crate::domain::AudioPower;
-
-/// Información de un dispositivo de audio.
-#[derive(Debug, Clone)]
-pub struct AudioDeviceInfo {
-    /// Nombre interno del dispositivo (para selección).
-    pub name: String,
-    /// Nombre amigable para mostrar al usuario.
-    pub display_name: String,
-    /// Descripción adicional.
-    pub description: String,
-    /// Es el dispositivo por defecto.
-    pub is_default: bool,
-}
+use crate::domain::ports::inbound::{AudioCapturePort, AudioDeviceInfo};
 
 /// Tipo de backend de captura.
 #[derive(Debug, Clone, PartialEq)]
@@ -138,23 +126,6 @@ impl AudioCapture {
         None
     }
 
-    /// Lista los dispositivos de entrada disponibles.
-    pub fn list_input_devices(&self) -> Result<Vec<AudioDeviceInfo>> {
-        let pw_sources = Self::get_pipewire_sources();
-        let default_source = Self::get_default_source();
-
-        info!("Fuentes PipeWire encontradas: {}", pw_sources.len());
-
-        let mut devices = if !pw_sources.is_empty() {
-            Self::build_pipewire_devices(&pw_sources, &default_source)
-        } else {
-            self.build_cpal_devices()?
-        };
-
-        Self::sort_devices(&mut devices);
-        Ok(devices)
-    }
-
     /// Construye lista de dispositivos desde PipeWire.
     fn build_pipewire_devices(
         sources: &HashMap<String, (String, String)>,
@@ -213,32 +184,6 @@ impl AudioCapture {
         });
     }
 
-    /// Selecciona un dispositivo por nombre.
-    pub fn select_device(&mut self, device_name: &str) -> Result<()> {
-        // Verificar si es un dispositivo PipeWire (bluez, alsa_input, etc.)
-        if device_name.starts_with("bluez_") ||
-           device_name.starts_with("alsa_input.") ||
-           device_name.starts_with("alsa_output.") {
-            info!("Dispositivo PipeWire seleccionado: {}", device_name);
-            self.backend = CaptureBackend::PipeWire(device_name.to_string());
-            return Ok(());
-        }
-
-        // Buscar en dispositivos CPAL/ALSA
-        for device in self.host.input_devices()? {
-            if let Ok(name) = device.name() {
-                if name == device_name {
-                    info!("Dispositivo CPAL seleccionado: {}", name);
-                    self.device = Some(device);
-                    self.backend = CaptureBackend::Cpal;
-                    return Ok(());
-                }
-            }
-        }
-
-        Err(anyhow!("Dispositivo no encontrado: {}", device_name))
-    }
-
     /// Selecciona el dispositivo por defecto.
     pub fn select_default_device(&mut self) -> Result<()> {
         let device = self.host.default_input_device()
@@ -249,14 +194,6 @@ impl AudioCapture {
 
         self.device = Some(device);
         Ok(())
-    }
-
-    /// Inicia la captura de audio.
-    pub fn start_capture(&mut self) -> Result<()> {
-        match &self.backend {
-            CaptureBackend::Cpal => self.start_capture_cpal(),
-            CaptureBackend::PipeWire(device) => self.start_capture_pipewire(device.clone()),
-        }
     }
 
     /// Inicia captura usando CPAL/ALSA.
@@ -350,9 +287,58 @@ impl AudioCapture {
         info!("Captura PipeWire iniciada (baja latencia) para: {}", device_name);
         Ok(())
     }
+}
 
-    /// Detiene la captura de audio.
-    pub fn stop_capture(&mut self) {
+impl AudioCapturePort for AudioCapture {
+    fn list_input_devices(&self) -> Result<Vec<AudioDeviceInfo>> {
+        let pw_sources = Self::get_pipewire_sources();
+        let default_source = Self::get_default_source();
+
+        info!("Fuentes PipeWire encontradas: {}", pw_sources.len());
+
+        let mut devices = if !pw_sources.is_empty() {
+            Self::build_pipewire_devices(&pw_sources, &default_source)
+        } else {
+            self.build_cpal_devices()?
+        };
+
+        Self::sort_devices(&mut devices);
+        Ok(devices)
+    }
+
+    fn select_device(&mut self, device_name: &str) -> Result<()> {
+        // Verificar si es un dispositivo PipeWire (bluez, alsa_input, etc.)
+        if device_name.starts_with("bluez_") ||
+           device_name.starts_with("alsa_input.") ||
+           device_name.starts_with("alsa_output.") {
+            info!("Dispositivo PipeWire seleccionado: {}", device_name);
+            self.backend = CaptureBackend::PipeWire(device_name.to_string());
+            return Ok(());
+        }
+
+        // Buscar en dispositivos CPAL/ALSA
+        for device in self.host.input_devices()? {
+            if let Ok(name) = device.name() {
+                if name == device_name {
+                    info!("Dispositivo CPAL seleccionado: {}", name);
+                    self.device = Some(device);
+                    self.backend = CaptureBackend::Cpal;
+                    return Ok(());
+                }
+            }
+        }
+
+        Err(anyhow!("Dispositivo no encontrado: {}", device_name))
+    }
+
+    fn start_capture(&mut self) -> Result<()> {
+        match &self.backend {
+            CaptureBackend::Cpal => self.start_capture_cpal(),
+            CaptureBackend::PipeWire(device) => self.start_capture_pipewire(device.clone()),
+        }
+    }
+
+    fn stop_capture(&mut self) {
         // Detener stream CPAL
         if let Some(stream) = self.stream.take() {
             drop(stream);
@@ -372,14 +358,12 @@ impl AudioCapture {
             .output();
     }
 
-    /// Obtiene y limpia el buffer de samples.
-    pub fn take_samples(&self) -> Vec<f32> {
+    fn take_samples(&self) -> Vec<f32> {
         let mut buffer = self.samples_buffer.lock().unwrap();
         std::mem::take(&mut *buffer)
     }
 
-    /// Obtiene la potencia actual del audio.
-    pub fn current_power(&self) -> AudioPower {
+    fn current_power(&self) -> AudioPower {
         let buffer = self.samples_buffer.lock().unwrap();
         if buffer.is_empty() {
             AudioPower::zero()
@@ -388,21 +372,9 @@ impl AudioCapture {
         }
     }
 
-    /// Limpia el buffer de samples.
-    pub fn clear_buffer(&self) {
+    fn clear_buffer(&self) {
         let mut buffer = self.samples_buffer.lock().unwrap();
         buffer.clear();
-    }
-
-    /// Obtiene el número de samples en el buffer.
-    pub fn buffer_len(&self) -> usize {
-        self.samples_buffer.lock().unwrap().len()
-    }
-
-    /// Calcula la potencia promedio de los samples actuales.
-    pub fn average_power(&self) -> AudioPower {
-        let buffer = self.samples_buffer.lock().unwrap();
-        AudioPower::from_samples(&buffer)
     }
 }
 

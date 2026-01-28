@@ -3,4 +3,3 @@
 pub mod services;
 pub mod dtos;
 
-pub use services::TranscriptionOrchestrator;

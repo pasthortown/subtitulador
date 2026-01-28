@@ -1,31 +1,41 @@
 //! Puertos de entrada (drivers).
 
-use crate::domain::{AudioBuffer, Subtitle};
 use anyhow::Result;
+use crate::domain::AudioPower;
 
-/// Puerto para captura de audio.
-pub trait AudioCapturePort: Send + Sync {
-    /// Inicia la captura de audio.
-    fn start(&mut self) -> Result<()>;
-
-    /// Detiene la captura de audio.
-    fn stop(&mut self) -> Result<()>;
-
-    /// Obtiene los samples capturados (no bloqueante).
-    fn get_samples(&mut self) -> Option<Vec<f32>>;
-
-    /// Verifica si está capturando.
-    fn is_capturing(&self) -> bool;
+/// Información de un dispositivo de audio.
+#[derive(Debug, Clone)]
+pub struct AudioDeviceInfo {
+    /// Nombre interno del dispositivo (para selección).
+    pub name: String,
+    /// Nombre amigable para mostrar al usuario.
+    pub display_name: String,
+    /// Descripción adicional.
+    pub description: String,
+    /// Es el dispositivo por defecto.
+    pub is_default: bool,
 }
 
-/// Puerto para la interfaz de usuario.
-pub trait UIPort: Send + Sync {
-    /// Muestra un subtítulo.
-    fn show_subtitle(&mut self, subtitle: Subtitle);
+/// Puerto para captura de audio.
+pub trait AudioCapturePort {
+    /// Lista los dispositivos de entrada disponibles.
+    fn list_input_devices(&self) -> Result<Vec<AudioDeviceInfo>>;
 
-    /// Limpia todos los subtítulos.
-    fn clear_subtitles(&mut self);
+    /// Selecciona un dispositivo por nombre.
+    fn select_device(&mut self, device_name: &str) -> Result<()>;
 
-    /// Actualiza la UI (para animaciones).
-    fn update(&mut self);
+    /// Inicia la captura de audio.
+    fn start_capture(&mut self) -> Result<()>;
+
+    /// Detiene la captura de audio.
+    fn stop_capture(&mut self);
+
+    /// Obtiene y limpia el buffer de samples (no bloqueante).
+    fn take_samples(&self) -> Vec<f32>;
+
+    /// Obtiene la potencia actual del audio.
+    fn current_power(&self) -> AudioPower;
+
+    /// Limpia el buffer de samples.
+    fn clear_buffer(&self);
 }

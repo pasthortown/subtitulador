@@ -2,4 +2,4 @@
 
 mod audio_capture;
 
-pub use audio_capture::{AudioCapture, AudioDeviceInfo};
+pub use audio_capture::AudioCapture;

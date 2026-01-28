@@ -7,11 +7,12 @@ use tracing::{debug, error};
 use serde::Deserialize;
 
 use crate::domain::Language;
+use crate::domain::ports::outbound::{TranslationPort, AvailableLanguage};
 use crate::application::dtos::{TranslationRequest, TranslationResponse};
 
-/// Idioma disponible en el servicio de traducción.
-#[derive(Debug, Clone, Deserialize)]
-pub struct AvailableLanguage {
+/// DTO interno para deserializar idiomas desde la API.
+#[derive(Debug, Deserialize)]
+struct AvailableLanguageDto {
     pub code: String,
     pub name: String,
 }
@@ -33,9 +34,10 @@ impl HttpTranslationClient {
             base_url: base_url.trim_end_matches('/').to_string(),
         }
     }
+}
 
-    /// Traduce texto de un idioma a otro.
-    pub fn translate(&self, text: &str, source: &Language, target: &Language) -> Result<String> {
+impl TranslationPort for HttpTranslationClient {
+    fn translate(&self, text: &str, source: &Language, target: &Language) -> Result<String> {
         if text.is_empty() {
             return Ok(String::new());
         }
@@ -69,8 +71,7 @@ impl HttpTranslationClient {
         Ok(body.translated_text)
     }
 
-    /// Obtiene la lista de idiomas disponibles en el servicio de traducción.
-    pub fn fetch_languages(&self) -> Result<Vec<AvailableLanguage>> {
+    fn fetch_languages(&self) -> Result<Vec<AvailableLanguage>> {
         let url = format!("{}/languages", self.base_url);
 
         let response = self.client
@@ -82,16 +83,19 @@ impl HttpTranslationClient {
             return Err(anyhow!("Error al obtener idiomas: status {}", response.status()));
         }
 
-        let languages: Vec<AvailableLanguage> = response
+        let dtos: Vec<AvailableLanguageDto> = response
             .json()
             .map_err(|e| anyhow!("Error parseando idiomas: {}", e))?;
 
-        debug!("Idiomas disponibles: {}", languages.len());
-        Ok(languages)
+        debug!("Idiomas disponibles: {}", dtos.len());
+
+        Ok(dtos.into_iter().map(|d| AvailableLanguage {
+            code: d.code,
+            name: d.name,
+        }).collect())
     }
 
-    /// Verifica si el servicio está disponible.
-    pub fn is_available(&self) -> bool {
+    fn is_available(&self) -> bool {
         let url = format!("{}/languages", self.base_url);
         self.client.get(&url).send().is_ok()
     }
