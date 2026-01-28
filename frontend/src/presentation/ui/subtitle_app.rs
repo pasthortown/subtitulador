@@ -141,6 +141,8 @@ pub struct SubtitleApp {
     voice_calibrated: bool,
     /// Potencia actual del micrófono (para mostrar nivel).
     current_mic_level: f32,
+    /// Indica si el usuario arrastró la ventana manualmente.
+    dragged_by_user: bool,
     /// Mostrar selector de idiomas.
     show_language_selector: bool,
     /// Lista de idiomas disponibles del backend.
@@ -219,6 +221,7 @@ impl SubtitleApp {
             silence_calibrated: false,
             voice_calibrated: false,
             current_mic_level: 0.0,
+            dragged_by_user: false,
             show_language_selector: false,
             available_languages: Vec::new(),
             input_lang_nav_index: 0,
@@ -280,8 +283,17 @@ impl SubtitleApp {
 
     /// Actualiza el tamaño de la ventana según el contenido.
     fn update_window_size(&self, ctx: &egui::Context) {
-        let (monitor_width, monitor_height, monitor_x, monitor_y) = self.monitor_geometry;
         let content_height = self.calculate_content_height().max(100.0);
+
+        // Solo actualizar tamaño, no posición (si el usuario arrastró)
+        if self.dragged_by_user {
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(
+                egui::vec2(SUBTITLE_BAR_WIDTH, content_height)
+            ));
+            return;
+        }
+
+        let (monitor_width, monitor_height, monitor_x, monitor_y) = self.monitor_geometry;
 
         let x = monitor_x + (monitor_width - SUBTITLE_BAR_WIDTH) / 2.0;
         let y = monitor_y + monitor_height - content_height - BOTTOM_MARGIN;
@@ -785,7 +797,7 @@ impl SubtitleApp {
         egui::Frame::none()
             .fill(egui::Color32::from_rgb(50, 50, 50))
             .rounding(6.0)
-            .inner_margin(egui::Margin::symmetric(0.0, 6.0))
+            .inner_margin(egui::Margin::symmetric(10.0, 6.0))
     }
 
     /// Dibuja un título de diálogo con estilo estándar.
@@ -812,13 +824,13 @@ impl SubtitleApp {
                     Self::draw_dialog_title(ui, "¿Deseas salir?");
 
                     ui.horizontal(|ui| {
-                        ui.add_space(10.0);
-                        if ui.add_sized([65.0, 20.0], egui::Button::new("Sí")).clicked() {
+                        let w = (ui.available_width() - 10.0) / 2.0;
+                        if ui.add_sized([w, 20.0], egui::Button::new("Sí")).clicked() {
                             info!("Usuario confirmó salida");
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
                         ui.add_space(10.0);
-                        if ui.add_sized([65.0, 20.0], egui::Button::new("No")).clicked() {
+                        if ui.add_sized([w, 20.0], egui::Button::new("No")).clicked() {
                             self.show_exit_dialog = false;
                         }
                     });
@@ -840,20 +852,20 @@ impl SubtitleApp {
                     Self::draw_dialog_title(ui, "¿Deseas recalibrar?");
 
                     ui.horizontal(|ui| {
-                        ui.add_space(10.0);
-                        if ui.add_sized([86.0, 20.0], egui::Button::new("Silencio")).clicked() {
+                        let w = (ui.available_width() - 20.0) / 3.0;
+                        if ui.add_sized([w, 20.0], egui::Button::new("Silencio")).clicked() {
                             info!("Iniciando recalibración de silencio");
                             self.show_calibration_dialog = false;
                             self.start_recalibration(RecalibrationType::Silence);
                         }
                         ui.add_space(10.0);
-                        if ui.add_sized([86.0, 20.0], egui::Button::new("Voz")).clicked() {
+                        if ui.add_sized([w, 20.0], egui::Button::new("Voz")).clicked() {
                             info!("Iniciando recalibración de voz");
                             self.show_calibration_dialog = false;
                             self.start_recalibration(RecalibrationType::Voice);
                         }
                         ui.add_space(10.0);
-                        if ui.add_sized([86.0, 20.0], egui::Button::new("Salir")).clicked() {
+                        if ui.add_sized([w, 20.0], egui::Button::new("Salir")).clicked() {
                             self.show_calibration_dialog = false;
                         }
                     });
@@ -884,14 +896,15 @@ impl SubtitleApp {
         let device_count = self.available_devices.len();
 
         ui.horizontal(|ui| {
-            ui.add_space(5.0);
+            // Calcular ancho del nombre: total disponible - 2 flechas(24*2) - refrescar(24) - 4 espacios(3*4)
+            let name_width = ui.available_width() - 24.0 * 3.0 - 3.0 * 4.0;
 
             if Self::draw_nav_arrow(ui, "◀", has_devices) {
                 self.navigate_device_previous(device_count);
             }
             ui.add_space(3.0);
 
-            if self.draw_device_name_button(ui, has_devices) {
+            if self.draw_device_name_button_sized(ui, has_devices, name_width) {
                 self.select_device(self.device_nav_index);
                 self.show_device_selector = false;
             }
@@ -919,7 +932,7 @@ impl SubtitleApp {
     }
 
     /// Dibuja el botón con el nombre del dispositivo. Retorna true si fue clickeado.
-    fn draw_device_name_button(&self, ui: &mut egui::Ui, has_devices: bool) -> bool {
+    fn draw_device_name_button_sized(&self, ui: &mut egui::Ui, has_devices: bool, width: f32) -> bool {
         let name = if has_devices {
             self.get_device_display_name(self.device_nav_index)
         } else {
@@ -927,7 +940,7 @@ impl SubtitleApp {
         };
 
         let btn = ui.add_sized(
-            [180.0, 20.0],
+            [width, 20.0],
             egui::Button::new(egui::RichText::new(&name).size(10.0))
         );
 
@@ -1083,8 +1096,6 @@ impl SubtitleApp {
                     let lang_count = self.available_languages.len();
 
                     ui.horizontal(|ui| {
-                        ui.add_space(5.0);
-
                         // Sección idioma origen
                         if Self::draw_nav_arrow(ui, "◀", has_languages) {
                             self.input_lang_nav_index = if self.input_lang_nav_index == 0 {
@@ -1335,6 +1346,12 @@ impl eframe::App for SubtitleApp {
         // Diálogo de selección de idiomas
         if self.show_language_selector {
             self.draw_language_dialog(ctx);
+        }
+
+        // Arrastrar ventana: si el botón primario se presiona y ningún widget lo capturó
+        if ctx.input(|i| i.pointer.primary_pressed()) && !ctx.is_using_pointer() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+            self.dragged_by_user = true;
         }
 
         ctx.request_repaint();
