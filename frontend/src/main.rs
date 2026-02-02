@@ -57,11 +57,11 @@ fn run_subtitle_app(config: AppConfig) -> Result<()> {
     // La posición se ajusta dinámicamente en SubtitleApp
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([900.0, 100.0])
+            .with_inner_size([900.0, 150.0])
             .with_transparent(true)
             .with_decorations(false)
             .with_always_on_top()
-            .with_resizable(false),
+            .with_resizable(true),
         ..Default::default()
     };
 

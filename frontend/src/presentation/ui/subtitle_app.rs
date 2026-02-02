@@ -28,6 +28,17 @@ const SUBTITLE_BAR_WIDTH: f32 = 900.0;
 /// Distancia desde el borde inferior de la pantalla.
 const BOTTOM_MARGIN: f32 = 50.0;
 
+/// Padding superior para el área de subtítulos.
+const TOP_PADDING: f32 = 10.0;
+
+/// Altura fija de la ventana. No se redimensiona dinámicamente para evitar
+/// que el compositor gráfico estire los textos durante transiciones.
+/// Calculada para 2 frases de ~20 palabras (4-5 líneas a 28px) + status bar.
+const WINDOW_HEIGHT: f32 = 150.0;
+
+/// Activar para mostrar texto de prueba y calibrar visualmente el tamaño.
+const SHOW_TEST_TEXT: bool = false;
+
 /// Transparencia del fondo (0-255, donde 204 = 80%).
 const BACKGROUND_ALPHA: u8 = 204;
 
@@ -238,71 +249,31 @@ impl SubtitleApp {
         }
 
         let (monitor_width, monitor_height, monitor_x, monitor_y) = self.monitor_geometry;
-        let content_height = self.calculate_content_height().max(100.0);
 
         let x = monitor_x + (monitor_width - SUBTITLE_BAR_WIDTH) / 2.0;
-        let y = monitor_y + monitor_height - content_height - BOTTOM_MARGIN;
+        let y = monitor_y + monitor_height - WINDOW_HEIGHT - BOTTOM_MARGIN;
 
         info!(
             "Posicionando ventana: {}x{} en ({}, {})",
-            SUBTITLE_BAR_WIDTH, content_height, x, y
+            SUBTITLE_BAR_WIDTH, WINDOW_HEIGHT, x, y
         );
 
         ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(
             egui::pos2(x, y)
         ));
         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(
-            egui::vec2(SUBTITLE_BAR_WIDTH, content_height)
+            egui::vec2(SUBTITLE_BAR_WIDTH, WINDOW_HEIGHT)
         ));
 
         self.window_positioned = true;
     }
 
-    /// Calcula la altura necesaria para el contenido.
-    fn calculate_content_height(&self) -> f32 {
-        // Base: status bar + padding
-        let base_height = 50.0;
-
-        // Cada subtítulo puede ocupar múltiples líneas
-        // Estimamos ~35px por línea de subtítulo
-        let subtitle_height: f32 = if self.active_subtitles.is_empty() {
-            35.0 // Espacio mínimo para un subtítulo
-        } else {
-            self.active_subtitles.iter()
-                .map(|s| {
-                    // Estimar líneas basado en longitud del texto
-                    let chars = s.text().len();
-                    let lines = ((chars as f32 / 50.0).ceil() as usize).max(1);
-                    lines as f32 * 35.0
-                })
-                .sum()
-        };
-
-        base_height + subtitle_height
-    }
-
-    /// Actualiza el tamaño de la ventana según el contenido.
-    fn update_window_size(&self, ctx: &egui::Context) {
-        let content_height = self.calculate_content_height().max(100.0);
-
-        // Solo actualizar tamaño, no posición (si el usuario arrastró)
-        if self.dragged_by_user {
-            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(
-                egui::vec2(SUBTITLE_BAR_WIDTH, content_height)
-            ));
-            return;
-        }
-
-        let (monitor_width, monitor_height, monitor_x, monitor_y) = self.monitor_geometry;
-
-        let x = monitor_x + (monitor_width - SUBTITLE_BAR_WIDTH) / 2.0;
-        let y = monitor_y + monitor_height - content_height - BOTTOM_MARGIN;
-
-        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(
-            egui::pos2(x, y)
-        ));
+    /// Mantiene el tamaño fijo de la ventana.
+    /// La altura es constante (WINDOW_HEIGHT) para evitar que el compositor
+    /// gráfico estire los textos al redimensionar.
+    fn enforce_window_size(&self, ctx: &egui::Context) {
         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(
-            egui::vec2(SUBTITLE_BAR_WIDTH, content_height)
+            egui::vec2(SUBTITLE_BAR_WIDTH, WINDOW_HEIGHT)
         ));
     }
 
@@ -483,14 +454,24 @@ impl SubtitleApp {
     fn draw_subtitles(&self, ui: &mut egui::Ui) {
         let max_text_width = SUBTITLE_BAR_WIDTH - 40.0;
 
-        for subtitle in &self.active_subtitles {
-            let opacity = subtitle.opacity();
-            let alpha = (opacity * 255.0) as u8;
+        // Recopilar textos y opacidades a renderizar
+        let texts: Vec<(&str, f32)> = if SHOW_TEST_TEXT && self.active_subtitles.is_empty() {
+            vec![
+                ("Esta es la primera oración de prueba que contiene veinte palabras para verificar que el texto se muestra correctamente en pantalla", 1.0),
+                ("Esta segunda oración también es suficientemente larga como para comprobar que dos frases completas caben perfectamente en el espacio", 1.0),
+            ]
+        } else {
+            self.active_subtitles.iter()
+                .map(|s| (s.text(), s.opacity()))
+                .collect()
+        };
+
+        for (text, opacity) in &texts {
+            let alpha = (*opacity * 255.0) as u8;
 
             let text_color = egui::Color32::from_rgba_unmultiplied(255, 255, 255, alpha);
             let shadow_color = egui::Color32::from_rgba_unmultiplied(0, 0, 0, alpha);
 
-            let text = subtitle.text();
             let font = egui::FontId::proportional(28.0);
 
             // Layout con wrap automático
@@ -1279,32 +1260,47 @@ impl eframe::App for SubtitleApp {
         self.activate_pending();
         self.remove_expired();
 
-        self.update_window_size(ctx);
+        self.enforce_window_size(ctx);
 
         let mut click_device = false;
         let mut click_calibrate = false;
         let mut click_language = false;
         let mut click_exit = false;
 
-        let frame = egui::Frame::none()
-            .fill(egui::Color32::from_rgba_unmultiplied(0, 0, 0, BACKGROUND_ALPHA))
-            .rounding(8.0)
-            .inner_margin(10.0);
+        let bg_color = egui::Color32::from_rgba_unmultiplied(0, 0, 0, BACKGROUND_ALPHA);
+
+        // Status bar fija en la parte inferior (no se mueve con el contenido)
+        egui::TopBottomPanel::bottom("status_bar")
+            .exact_height(30.0)
+            .frame(
+                egui::Frame::none()
+                    .fill(bg_color)
+                    .inner_margin(egui::Margin { left: 10.0, right: 10.0, top: 4.0, bottom: 4.0 })
+            )
+            .show(ctx, |ui| {
+                let (cd, cc, cl, ce) = self.draw_status(ui);
+                click_device = cd;
+                click_calibrate = cc;
+                click_language = cl;
+                click_exit = ce;
+            });
+
+        // Área de subtítulos: ocupa todo el espacio restante arriba del status bar
+        let subtitle_frame = egui::Frame::none()
+            .fill(bg_color)
+            .rounding(egui::Rounding { nw: 8.0, ne: 8.0, sw: 0.0, se: 0.0 })
+            .inner_margin(egui::Margin {
+                left: 10.0,
+                right: 10.0,
+                top: 10.0 + TOP_PADDING,
+                bottom: 5.0,
+            });
 
         egui::CentralPanel::default()
-            .frame(frame)
+            .frame(subtitle_frame)
             .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    self.draw_subtitles(ui);
-
-                    ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                        let (cd, cc, cl, ce) = self.draw_status(ui);
-                        click_device = cd;
-                        click_calibrate = cc;
-                        click_language = cl;
-                        click_exit = ce;
-                    });
-                });
+                ui.set_clip_rect(ui.available_rect_before_wrap());
+                self.draw_subtitles(ui);
             });
 
         // Manejar clicks en los controles
